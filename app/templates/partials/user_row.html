@@ -1,0 +1,54 @@
+<tr id="user-row-{{ user.id }}">
+    <td>
+        {% if user.profile_picture %}
+            <img src="/uploads/{{ user.profile_picture }}" alt="" class="avatar">
+        {% else %}
+            <span class="avatar" style="display:inline-flex;align-items:center;justify-content:center;font-size:0.9rem;">
+                {{ user.username[0]|upper }}
+            </span>
+        {% endif %}
+        {{ user.username }}
+    </td>
+    <td>{{ user.email }}</td>
+    <td>
+        {% if user.is_admin %}
+            <span class="badge badge-admin">Admin</span>
+        {% else %}
+            <span class="badge badge-user">User</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if user.is_active %}
+            <span class="badge badge-active">Active</span>
+        {% else %}
+            <span class="badge badge-inactive">Inactive</span>
+        {% endif %}
+    </td>
+    <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '—' }}</td>
+    <td>
+        <div class="actions">
+            <!-- Toggle active status (HTMX) -->
+            <button
+                class="btn btn-outline"
+                hx-post="/admin/users/{{ user.id }}/toggle"
+                hx-target="#user-row-{{ user.id }}"
+                hx-swap="outerHTML"
+                hx-vals='{"csrf_token": "{{ csrf_token }}"}'
+                {% if user.id == current_user.id %}disabled title="You cannot deactivate yourself"{% endif %}>
+                {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+            </button>
+
+            <!-- Delete user (HTMX) -->
+            <button
+                class="btn btn-danger"
+                hx-delete="/admin/users/{{ user.id }}"
+                hx-target="#user-row-{{ user.id }}"
+                hx-swap="outerHTML"
+                hx-confirm="Are you sure you want to delete {{ user.username }}?"
+                hx-vals='{"csrf_token": "{{ csrf_token }}"}'
+                {% if user.id == current_user.id %}disabled title="You cannot delete yourself"{% endif %}>
+                Delete
+            </button>
+        </div>
+    </td>
+</tr>

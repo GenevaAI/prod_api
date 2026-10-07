@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h2>Welcome to your Dashboard</h2>
+    <p>Hello, {{ username }}!</p>
+
+    <p>This is your private dashboard page.</p>
+
+    <form action="/logout" method="post">
+        <input type="hidden" name="csrf_token" value="{{ request.cookies.get('csrf_token') }}">
+        <button type="submit">Logout</button>
+    </form>
+</body>
+</html>

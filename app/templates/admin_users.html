@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin – Users</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #3b82f6;
+            --danger: #ef4444;
+            --success: #22c55e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        h1 { font-size: 1.75rem; font-weight: 700; }
+        .nav a {
+            color: var(--muted);
+            text-decoration: none;
+            margin-left: 1.25rem;
+            font-size: 0.95rem;
+        }
+        .nav a:hover { color: var(--accent); }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 0.9rem 1.1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background: #0f172a;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(59, 130, 246, 0.05); }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-admin { background: #1e40af; color: #bfdbfe; }
+        .badge-user  { background: #334155; color: #cbd5e1; }
+        .badge-active   { background: #14532d; color: #86efac; }
+        .badge-inactive { background: #7f1d1d; color: #fca5a5; }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #334155;
+            vertical-align: middle;
+            margin-right: 0.6rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity 0.15s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-danger  { background: var(--danger); color: white; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .actions { display: flex; gap: 0.4rem; }
+        .empty {
+            padding: 3rem;
+            text-align: center;
+            color: var(--muted);
+        }
+        .htmx-indicator {
+            display: none;
+            margin-left: 0.5rem;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+        .htmx-request .htmx-indicator { display: inline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>User Management</h1>
+            <nav class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/profile">My Profile</a>
+                <a href="/admin/users-page">Users</a>
+                <form action="/logout" method="post" style="display:inline;">
+                    <button type="submit" class="btn btn-outline" style="margin-left:1rem;">Logout</button>
+                </form>
+            </nav>
+        </header>
+
+        <div class="card">
+            {% if users %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Joined</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                        {% include "partials/user_row.html" %}
+                    {% endfor %}                    
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty">No users found.</div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
