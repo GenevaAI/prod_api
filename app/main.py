@@ -28,6 +28,10 @@ app = FastAPI(
     redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
 )
 
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "API is running"}
+
 #HealthCheck
 @app.get("/health")
 async def health():
