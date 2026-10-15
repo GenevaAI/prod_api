@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from itsdangerous import URLSafeTimedSerializer
@@ -9,6 +9,10 @@ from .security import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from .config import settings
 import secrets
 import os
+import boto3
+from botocore.client import Config
+from io import BytesIO
+from dotenv import load_dotenv
 
 from .database import Base, engine, get_db
 from . import models
@@ -250,3 +254,43 @@ def logout(request: Request):
     response.delete_cookie("session_token")
     response.delete_cookie("csrf_token")
     return response
+
+load_dotenv()
+
+# -------------------------------------------------
+# Cloudflare R2 client (re-use this if you already have one)
+# -------------------------------------------------
+s3_client = boto3.client(
+    "s3",
+    endpoint_url=os.getenv("R2_ENDPOINT"),
+    aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+    config=Config(signature_version="s3v4"),
+    region_name="auto",          # R2 uses "auto"
+)
+
+BUCKET_NAME = os.getenv("R2_BUCKET")
+FILE_KEY = "Python API.docx"     # exact object key in R2
+
+@app.get("/download/python-api-docx", tags=["Public Downloads"])
+async def download_python_api_docx():
+
+    # Public endpoint – anyone can download the Word document without authentication.
+
+    try:
+        # Fetch the object from R2
+        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=FILE_KEY)
+        file_content = response["Body"].read()
+
+        # Prepare streaming response
+        return StreamingResponse(
+            BytesIO(file_content),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": 'attachment; filename="Python API.docx"'
+            },
+        )
+    except s3_client.exceptions.NoSuchKey:
+        raise HTTPException(status_code=404, detail="File not found in R2")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
