@@ -23,7 +23,7 @@ models.Base.metadata.create_all(bind=engine)
 
 # Create the FastAPI app FIRST
 app = FastAPI(
-    title="My API Backend",
+    title="Ahmed's API coded in Python and HTML using Visual Studio Code, Containerization: Docker, Code hosting: GitHub, Cloud Hosting: Render, Database: PostgreSQL, Cloud Storage: Cloudflare R2, EMail delivery: Resend",
     docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
     redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
 )
