@@ -1,5 +1,5 @@
 import resend
-from .config import settings          # ← add this
+from .config import settings
 
 resend.api_key = settings.RESEND_API_KEY
 

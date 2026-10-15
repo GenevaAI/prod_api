@@ -1,5 +1,5 @@
 from passlib.context import CryptContext
-from .config import settings          # ← add this
+from .config import settings      
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
