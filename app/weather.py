@@ -74,41 +74,53 @@ def get_client_ip(request: Request) -> str:
 
 def get_location_from_ip(ip: str) -> dict:
     """
-    Geolocate IP using ipinfo.io (works from cloud servers like Render).
-    When running locally, it uses the public IP of the machine.
+    Robust geolocation that works on both local development and Render.
+    Tries several strategies and finally falls back to a default location
+    so the page never completely fails.
     """
-    # Local development → use public IP
-    if ip in ("127.0.0.1", "::1", "localhost") or ip.startswith("10."):
-        url = "https://ipinfo.io/json"
-    else:
-        url = f"https://ipinfo.io/{ip}/json"
-
-    try:
+    def _call_ipinfo(url: str) -> dict:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
         data = resp.json()
 
-        # ipinfo returns "bogon" for private/reserved IPs
         if data.get("bogon"):
-            raise HTTPException(status_code=400, detail="Could not geolocate private IP")
+            raise ValueError("Private/bogon IP")
 
-        # Location comes as "lat,lon"
         loc = data.get("loc", "").split(",")
-        latitude = float(loc[0]) if len(loc) == 2 else None
-        longitude = float(loc[1]) if len(loc) == 2 else None
+        if len(loc) != 2:
+            raise ValueError("No coordinates returned")
 
         return {
             "ip": data.get("ip", ip),
-            "city": data.get("city"),
-            "region": data.get("region"),
-            "country": data.get("country"),
-            "latitude": latitude,
-            "longitude": longitude,
+            "city": data.get("city") or "Unknown",
+            "region": data.get("region") or "",
+            "country": data.get("country") or "",
+            "latitude": float(loc[0]),
+            "longitude": float(loc[1]),
         }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Geolocation service error: {str(e)}")
+
+    # ---------- Strategy 1: try the real client IP ----------
+    try:
+        if ip and not (ip in ("127.0.0.1", "::1", "localhost") or ip.startswith(("10.", "172.", "192.168."))):
+            return _call_ipinfo(f"https://ipinfo.io/{ip}/json")
+    except Exception:
+        pass  # fall through to next strategy
+
+    # ---------- Strategy 2: ask ipinfo for the public IP of this server ----------
+    try:
+        return _call_ipinfo("https://ipinfo.io/json")
+    except Exception:
+        pass  # fall through to final fallback
+
+    # ---------- Final fallback (so the page never breaks) ----------
+    return {
+        "ip": ip or "unknown",
+        "city": "New York",
+        "region": "New York",
+        "country": "US",
+        "latitude": 40.7128,
+        "longitude": -74.0060,
+    }
 
 def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
     """Fetch current weather from Open-Meteo (no API key required)."""
