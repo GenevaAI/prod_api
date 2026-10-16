@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+requests
 sqlalchemy
 python-jose[cryptography]
 passlib[argon2]

@@ -21,6 +21,7 @@ from .models import User
 # Import routers
 from .routers import profile, users, auth_routes
 from .routers.auth_routes import get_current_user, verify_password, create_access_token, require_roles
+from .weather import router as weather_router   # import the Weather router
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -294,3 +295,6 @@ async def download_python_api_docx():
         raise HTTPException(status_code=404, detail="File not found in R2")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
+
+# Include the weather router
+app.include_router(weather_router)

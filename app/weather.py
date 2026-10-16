@@ -1,0 +1,358 @@
+from fastapi import APIRouter, Request, Query, HTTPException
+from fastapi.responses import HTMLResponse
+from enum import Enum
+from typing import Optional
+import requests
+
+# Create a router instead of a full FastAPI app
+router = APIRouter(
+    tags=["Weather"]            # nice grouping in the docs
+)
+
+# ------------------------------------------------------------------
+# WMO Weather interpretation codes (used by Open-Meteo)
+# ------------------------------------------------------------------
+WMO_WEATHER_CODES = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Depositing rime fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    56: "Light freezing drizzle",
+    57: "Dense freezing drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    66: "Light freezing rain",
+    67: "Heavy freezing rain",
+    71: "Slight snow fall",
+    73: "Moderate snow fall",
+    75: "Heavy snow fall",
+    77: "Snow grains",
+    80: "Slight rain showers",
+    81: "Moderate rain showers",
+    82: "Violent rain showers",
+    85: "Slight snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
+}
+
+
+class TemperatureUnit(str, Enum):
+    celsius = "celsius"
+    fahrenheit = "fahrenheit"
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Get the real client IP address.
+    Handles common proxy headers (X-Forwarded-For, X-Real-IP, CF-Connecting-IP).
+    """
+    # Cloudflare
+    if cf_ip := request.headers.get("cf-connecting-ip"):
+        return cf_ip
+
+    # Standard proxy header – take the first (original) IP
+    if xff := request.headers.get("x-forwarded-for"):
+        return xff.split(",")[0].strip()
+
+    # Some proxies use this
+    if real_ip := request.headers.get("x-real-ip"):
+        return real_ip
+
+    # Direct connection
+    if request.client:
+        return request.client.host
+
+    return "127.0.0.1"
+
+def get_location_from_ip(ip: str) -> dict:
+    """
+    Geolocate IP using ip-api.com (free, no API key required).
+    When running locally (127.0.0.1), it automatically uses your public IP
+    so you still get the correct city/country.
+    """
+    # If we are on localhost → ask for the public IP location
+    if ip in ("127.0.0.1", "::1", "localhost"):
+        url = "http://ip-api.com/json/"          # no IP → uses public IP
+    else:
+        url = f"http://ip-api.com/json/{ip}"
+
+    try:
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # ip-api.com returns status: "success" or "fail"
+        if data.get("status") != "success":
+            raise HTTPException(
+                status_code=400,
+                detail=data.get("message", "Could not geolocate IP"),
+            )
+
+        return {
+            "ip": data.get("query", ip),
+            "city": data.get("city"),
+            "region": data.get("regionName"),
+            "country": data.get("country"),
+            "latitude": data.get("lat"),
+            "longitude": data.get("lon"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Geolocation service error: {str(e)}")
+
+def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
+    """Fetch current weather from Open-Meteo (no API key required)."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "current": (
+            "temperature_2m,relative_humidity_2m,apparent_temperature,"
+            "precipitation,weather_code,wind_speed_10m,wind_direction_10m"
+        ),
+        "temperature_unit": unit.value,          # "celsius" or "fahrenheit"
+        "wind_speed_unit": "kmh",
+        "timezone": "auto",
+    }
+
+    try:
+        resp = requests.get(url, params=params, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        current = data.get("current", {})
+
+        # Add human-readable description
+        code = current.get("weather_code")
+        current["weather_description"] = WMO_WEATHER_CODES.get(
+            code, f"Unknown weather code ({code})"
+        )
+
+        return current
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Weather service error: {str(e)}")
+
+
+@router.get("/weather")
+async def weather_at_client_location(
+    request: Request,
+    unit: TemperatureUnit = Query(
+        default=TemperatureUnit.celsius,
+        description="Temperature unit: celsius or fahrenheit",
+    ),
+):
+    """
+    Returns the current weather at the approximate location of the connecting device.
+
+    - Detects client IP
+    - Geolocates the IP
+    - Fetches weather for those coordinates
+    - Supports Celsius / Fahrenheit
+    - Includes weather description from WMO weather_code
+    """
+    client_ip = get_client_ip(request)
+
+    # 1. Location from IP
+    location = get_location_from_ip(client_ip)
+
+    lat = location.get("latitude")
+    lon = location.get("longitude")
+
+    if lat is None or lon is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not determine coordinates from the client IP",
+        )
+
+    # 2. Weather
+    weather = get_weather(lat, lon, unit)
+
+    # 3. Response
+    return {
+        "client_ip": client_ip,
+        "location": {
+            "city": location.get("city"),
+            "region": location.get("region"),
+            "country": location.get("country"),
+            "latitude": lat,
+            "longitude": lon,
+        },
+        "unit": unit.value,
+        "weather": weather,
+    }
+
+
+@router.get("/weather-page", response_class=HTMLResponse)
+async def weather_page():
+    """
+    Friendly HTML page that shows the weather.
+    Access it at: /weather/page
+    """
+    return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Current Weather</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #2d3436;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            padding: 40px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+        .location {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .country {
+            color: #636e72;
+            margin-bottom: 25px;
+        }
+        .temp {
+            font-size: 4.5rem;
+            font-weight: 300;
+            line-height: 1;
+            margin: 10px 0;
+        }
+        .desc {
+            font-size: 1.3rem;
+            text-transform: capitalize;
+            margin-bottom: 30px;
+            color: #2d3436;
+        }
+        .details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            text-align: left;
+        }
+        .detail {
+            background: #f5f6fa;
+            padding: 12px 15px;
+            border-radius: 12px;
+        }
+        .detail span {
+            display: block;
+            font-size: 0.85rem;
+            color: #636e72;
+        }
+        .detail strong {
+            font-size: 1.1rem;
+        }
+        .loading, .error {
+            font-size: 1.2rem;
+            padding: 40px 20px;
+        }
+        .error { color: #d63031; }
+        .unit-toggle {
+            margin-top: 25px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        button {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 30px;
+            background: #0984e3;
+            color: white;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #74b9ff; }
+        button.active { background: #2d3436; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="content">
+            <div class="loading">Loading weather...</div>
+        </div>
+
+        <div class="unit-toggle">
+            <button id="btn-c" class="active" onclick="loadWeather('celsius')">°C</button>
+            <button id="btn-f" onclick="loadWeather('fahrenheit')">°F</button>
+        </div>
+    </div>
+
+    <script>
+        async function loadWeather(unit = 'celsius') {
+            // Update active button
+            document.getElementById('btn-c').classList.toggle('active', unit === 'celsius');
+            document.getElementById('btn-f').classList.toggle('active', unit === 'fahrenheit');
+
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">Loading weather...</div>';
+
+            try {
+                const res = await fetch(`/weather?unit=${unit}`);
+                if (!res.ok) throw new Error('Failed to load weather');
+
+                const data = await res.json();
+
+                const loc = data.location;
+                const w = data.weather;
+
+                content.innerHTML = `
+                    <div class="location">${loc.city || 'Unknown city'}</div>
+                    <div class="country">${loc.region || ''} ${loc.country || ''}</div>
+
+                    <div class="temp">${Math.round(w.temperature_2m)}°</div>
+                    <div class="desc">${w.weather_description || '—'}</div>
+
+                    <div class="details">
+                        <div class="detail">
+                            <span>Feels like</span>
+                            <strong>${Math.round(w.apparent_temperature)}°</strong>
+                        </div>
+                        <div class="detail">
+                            <span>Humidity</span>
+                            <strong>${w.relative_humidity_2m}%</strong>
+                        </div>
+                        <div class="detail">
+                            <span>Wind</span>
+                            <strong>${w.wind_speed_10m} km/h</strong>
+                        </div>
+                        <div class="detail">
+                            <span>Precipitation</span>
+                            <strong>${w.precipitation} mm</strong>
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                content.innerHTML = `<div class="error">Could not load weather data.<br>${err.message}</div>`;
+            }
+        }
+
+        // Load on page open
+        loadWeather('celsius');
+    </script>
+</body>
+</html>
+"""
