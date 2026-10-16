@@ -274,54 +274,6 @@ async def weather_at_client_location(
         # This will show the real error in the response
         raise HTTPException(status_code=502, detail=f"Unexpected error: {type(e).__name__}: {str(e)}")
 
-async def weather_at_client_location_commented (
-    request: Request,
-    unit: TemperatureUnit = Query(
-        default=TemperatureUnit.celsius,
-        description="Temperature unit: celsius or fahrenheit",
-    ),
-):
-
-    """
-    Returns the current weather at the approximate location of the connecting device.
-
-    - Detects client IP
-    - Geolocates the IP
-    - Fetches weather for those coordinates
-    - Supports Celsius / Fahrenheit
-    - Includes weather description from WMO weather_code
-    """
-    client_ip = get_client_ip(request)
-
-    # 1. Location from IP
-    location = get_location_from_ip(client_ip)
-
-    lat = location.get("latitude")
-    lon = location.get("longitude")
-
-    if lat is None or lon is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not determine coordinates from the client IP",
-        )
-
-    # 2. Weather
-    weather = get_weather(lat, lon, unit)
-
-    # 3. Response
-    return {
-        "client_ip": client_ip,
-        "location": {
-            "city": location.get("city"),
-            "region": location.get("region"),
-            "country": location.get("country"),
-            "latitude": lat,
-            "longitude": lon,
-        },
-        "unit": unit.value,
-        "weather": weather,
-    }
-
 @router.get("/weather-page", response_class=HTMLResponse)
 async def weather_page():
     """
