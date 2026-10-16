@@ -48,11 +48,10 @@ class TemperatureUnit(str, Enum):
     celsius = "celsius"
     fahrenheit = "fahrenheit"
 
-
 def get_client_ip(request: Request) -> str:
     """
     Get the real client IP address.
-    Handles common proxy headers (X-Forwarded-For, X-Real-IP, CF-Connecting-IP).
+    Handles common proxy headers used by Render, Cloudflare, etc.
     """
     # Cloudflare
     if cf_ip := request.headers.get("cf-connecting-ip"):
@@ -60,6 +59,7 @@ def get_client_ip(request: Request) -> str:
 
     # Standard proxy header – take the first (original) IP
     if xff := request.headers.get("x-forwarded-for"):
+        # Render and most proxies put the real client IP first
         return xff.split(",")[0].strip()
 
     # Some proxies use this
@@ -74,35 +74,36 @@ def get_client_ip(request: Request) -> str:
 
 def get_location_from_ip(ip: str) -> dict:
     """
-    Geolocate IP using ip-api.com (free, no API key required).
-    When running locally (127.0.0.1), it automatically uses your public IP
-    so you still get the correct city/country.
+    Geolocate IP using ipinfo.io (works from cloud servers like Render).
+    When running locally, it uses the public IP of the machine.
     """
-    # If we are on localhost → ask for the public IP location
-    if ip in ("127.0.0.1", "::1", "localhost"):
-        url = "http://ip-api.com/json/"          # no IP → uses public IP
+    # Local development → use public IP
+    if ip in ("127.0.0.1", "::1", "localhost") or ip.startswith("10."):
+        url = "https://ipinfo.io/json"
     else:
-        url = f"http://ip-api.com/json/{ip}"
+        url = f"https://ipinfo.io/{ip}/json"
 
     try:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
         data = resp.json()
 
-        # ip-api.com returns status: "success" or "fail"
-        if data.get("status") != "success":
-            raise HTTPException(
-                status_code=400,
-                detail=data.get("message", "Could not geolocate IP"),
-            )
+        # ipinfo returns "bogon" for private/reserved IPs
+        if data.get("bogon"):
+            raise HTTPException(status_code=400, detail="Could not geolocate private IP")
+
+        # Location comes as "lat,lon"
+        loc = data.get("loc", "").split(",")
+        latitude = float(loc[0]) if len(loc) == 2 else None
+        longitude = float(loc[1]) if len(loc) == 2 else None
 
         return {
-            "ip": data.get("query", ip),
+            "ip": data.get("ip", ip),
             "city": data.get("city"),
-            "region": data.get("regionName"),
+            "region": data.get("region"),
             "country": data.get("country"),
-            "latitude": data.get("lat"),
-            "longitude": data.get("lon"),
+            "latitude": latitude,
+            "longitude": longitude,
         }
     except HTTPException:
         raise
