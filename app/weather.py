@@ -154,6 +154,7 @@ def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
         raise HTTPException(status_code=502, detail=f"Weather service error: {str(e)}")
 
 @router.get("/weather")
+@router.get("/weather")
 async def weather_at_client_location(
     request: Request,
     unit: TemperatureUnit = Query(
@@ -161,6 +162,47 @@ async def weather_at_client_location(
         description="Temperature unit: celsius or fahrenheit",
     ),
 ):
+    try:
+        client_ip = get_client_ip(request)
+        location = get_location_from_ip(client_ip)
+
+        lat = location.get("latitude")
+        lon = location.get("longitude")
+
+        if lat is None or lon is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not determine coordinates from the client IP",
+            )
+
+        weather = get_weather(lat, lon, unit)
+
+        return {
+            "client_ip": client_ip,
+            "location": {
+                "city": location.get("city"),
+                "region": location.get("region"),
+                "country": location.get("country"),
+                "latitude": lat,
+                "longitude": lon,
+            },
+            "unit": unit.value,
+            "weather": weather,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        # This will show the real error in the response
+        raise HTTPException(status_code=502, detail=f"Unexpected error: {type(e).__name__}: {str(e)}")
+
+async def weather_at_client_location_commented_out(
+    request: Request,
+    unit: TemperatureUnit = Query(
+        default=TemperatureUnit.celsius,
+        description="Temperature unit: celsius or fahrenheit",
+    ),
+):
+
     """
     Returns the current weather at the approximate location of the connecting device.
 
@@ -200,7 +242,6 @@ async def weather_at_client_location(
         "unit": unit.value,
         "weather": weather,
     }
-
 
 @router.get("/weather-page", response_class=HTMLResponse)
 async def weather_page():
