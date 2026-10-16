@@ -131,7 +131,9 @@ def get_location_from_ip(ip: str) -> dict:
 
 def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
     """
-    Fetch current weather from Open-Meteo with caching + proper User-Agent.
+    Fetch current weather.
+    1. Try Open-Meteo (with cache)
+    2. If it fails (especially 429), fall back to wttr.in
     """
     cache_key = (round(lat, 2), round(lon, 2), unit.value)
 
@@ -141,26 +143,27 @@ def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
         if datetime.utcnow() - cached_time < timedelta(minutes=CACHE_MINUTES):
             return cached_data
 
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "current": (
-            "temperature_2m,relative_humidity_2m,apparent_temperature,"
-            "precipitation,weather_code,wind_speed_10m,wind_direction_10m"
-        ),
-        "temperature_unit": unit.value,
-        "wind_speed_unit": "kmh",
-        "timezone": "auto",
-    }
-
-    headers = {
-        # Open-Meteo asks for a descriptive User-Agent
-        "User-Agent": "WeatherApp/1.0 (https://prod-api-yrml.onrender.com; contact@example.com)"
-    }
-
+    # -------------------------------------------------
+    # 1. Try Open-Meteo
+    # -------------------------------------------------
     try:
-        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "current": (
+                "temperature_2m,relative_humidity_2m,apparent_temperature,"
+                "precipitation,weather_code,wind_speed_10m,wind_direction_10m"
+            ),
+            "temperature_unit": unit.value,
+            "wind_speed_unit": "kmh",
+            "timezone": "auto",
+        }
+        headers = {
+            "User-Agent": "WeatherApp/1.0 (https://prod-api-yrml.onrender.com)"
+        }
+
+        resp = requests.get(url, params=params, headers=headers, timeout=12)
         resp.raise_for_status()
         data = resp.json()
         current = data.get("current", {})
@@ -170,15 +173,66 @@ def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
             code, f"Unknown weather code ({code})"
         )
 
-        # Store in cache
+        # Cache and return
         _weather_cache[cache_key] = (datetime.utcnow(), current)
-
         return current
 
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Weather service error: {str(e)}")
+        # Open-Meteo failed → try fallback
+        print(f"Open-Meteo failed: {e}. Trying wttr.in fallback...")
 
-@router.get("/weather")
+    # -------------------------------------------------
+    # 2. Fallback: wttr.in (free, no key required)
+    # -------------------------------------------------
+    try:
+        # wttr.in uses °C by default. We'll convert if needed.
+        url = f"https://wttr.in/{lat},{lon}?format=j1"
+        headers = {
+            "User-Agent": "WeatherApp/1.0 (https://prod-api-yrml.onrender.com)"
+        }
+
+        resp = requests.get(url, headers=headers, timeout=12)
+        resp.raise_for_status()
+        data = resp.json()
+
+        current_condition = data["current_condition"][0]
+
+        temp_c = float(current_condition["temp_C"])
+        feels_c = float(current_condition["FeelsLikeC"])
+        humidity = int(current_condition["humidity"])
+        precip = float(current_condition["precipMM"])
+        wind_kmh = float(current_condition["windspeedKmph"])
+        desc = current_condition["weatherDesc"][0]["value"]
+
+        # Convert to Fahrenheit if requested
+        if unit == TemperatureUnit.fahrenheit:
+            temp = temp_c * 9/5 + 32
+            feels = feels_c * 9/5 + 32
+        else:
+            temp = temp_c
+            feels = feels_c
+
+        result = {
+            "temperature_2m": round(temp, 1),
+            "apparent_temperature": round(feels, 1),
+            "relative_humidity_2m": humidity,
+            "precipitation": precip,
+            "weather_code": None,
+            "weather_description": desc,
+            "wind_speed_10m": wind_kmh,
+            "wind_direction_10m": None,
+        }
+
+        # Cache the fallback result too
+        _weather_cache[cache_key] = (datetime.utcnow(), result)
+        return result
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Both weather services failed. Last error: {str(e)}"
+        )
+
 @router.get("/weather")
 async def weather_at_client_location(
     request: Request,
