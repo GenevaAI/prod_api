@@ -132,18 +132,18 @@ def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
             "temperature_2m,relative_humidity_2m,apparent_temperature,"
             "precipitation,weather_code,wind_speed_10m,wind_direction_10m"
         ),
-        "temperature_unit": unit.value,          # "celsius" or "fahrenheit"
+        "temperature_unit": unit.value,
         "wind_speed_unit": "kmh",
         "timezone": "auto",
     }
 
     try:
-        resp = requests.get(url, params=params, timeout=5)
+        # Increased timeout for Render free tier (cold starts are slow)
+        resp = requests.get(url, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
         current = data.get("current", {})
 
-        # Add human-readable description
         code = current.get("weather_code")
         current["weather_description"] = WMO_WEATHER_CODES.get(
             code, f"Unknown weather code ({code})"
@@ -152,7 +152,6 @@ def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
         return current
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Weather service error: {str(e)}")
-
 
 @router.get("/weather")
 async def weather_at_client_location(
