@@ -296,5 +296,31 @@ async def download_python_api_docx():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
+FILE_KEY2 = "Python API - Weather Page.docx"     # exact object key in R2
+
+@app.get("/download/python-api-weather-page-docx", tags=["Public Downloads"])
+async def download_python_api_weather_page_docx():
+
+    # Public endpoint – anyone can download the Word document without authentication.
+
+    try:
+        # Fetch the object from R2
+        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=FILE_KEY2)
+        file_content = response["Body"].read()
+
+        # Prepare streaming response
+        return StreamingResponse(
+            BytesIO(file_content),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": 'attachment; filename="Python API - Weather Page.docx"'
+            },
+        )
+    except s3_client.exceptions.NoSuchKey:
+        raise HTTPException(status_code=404, detail="File not found in R2")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
+
+
 # Include the weather router
 app.include_router(weather_router)
