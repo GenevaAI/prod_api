@@ -220,7 +220,7 @@ async def weather_at_client_location(
         # This will show the real error in the response
         raise HTTPException(status_code=502, detail=f"Unexpected error: {type(e).__name__}: {str(e)}")
 
-async def weather_at_client_location_commented_out(
+async def weather_at_client_location_commented (
     request: Request,
     unit: TemperatureUnit = Query(
         default=TemperatureUnit.celsius,
