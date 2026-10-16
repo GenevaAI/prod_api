@@ -3,11 +3,18 @@ from fastapi.responses import HTMLResponse
 from enum import Enum
 from typing import Optional
 import requests
+from datetime import datetime, timedelta
+import time
+
 
 # Create a router instead of a full FastAPI app
 router = APIRouter(
     tags=["Weather"]            # nice grouping in the docs
 )
+
+# Simple in-memory cache: { (lat, lon, unit): (timestamp, data) }
+_weather_cache = {}
+CACHE_MINUTES = 10          # cache results for 10 minutes
 
 # ------------------------------------------------------------------
 # WMO Weather interpretation codes (used by Open-Meteo)
@@ -123,7 +130,17 @@ def get_location_from_ip(ip: str) -> dict:
     }
 
 def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
-    """Fetch current weather from Open-Meteo (no API key required)."""
+    """
+    Fetch current weather from Open-Meteo with caching + proper User-Agent.
+    """
+    cache_key = (round(lat, 2), round(lon, 2), unit.value)
+
+    # Return cached result if still fresh
+    if cache_key in _weather_cache:
+        cached_time, cached_data = _weather_cache[cache_key]
+        if datetime.utcnow() - cached_time < timedelta(minutes=CACHE_MINUTES):
+            return cached_data
+
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
@@ -137,9 +154,13 @@ def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
         "timezone": "auto",
     }
 
+    headers = {
+        # Open-Meteo asks for a descriptive User-Agent
+        "User-Agent": "WeatherApp/1.0 (https://prod-api-yrml.onrender.com; contact@example.com)"
+    }
+
     try:
-        # Increased timeout for Render free tier (cold starts are slow)
-        resp = requests.get(url, params=params, timeout=15)
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
         resp.raise_for_status()
         data = resp.json()
         current = data.get("current", {})
@@ -149,7 +170,11 @@ def get_weather(lat: float, lon: float, unit: TemperatureUnit) -> dict:
             code, f"Unknown weather code ({code})"
         )
 
+        # Store in cache
+        _weather_cache[cache_key] = (datetime.utcnow(), current)
+
         return current
+
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Weather service error: {str(e)}")
 
