@@ -326,10 +326,14 @@ async def download_python_api_weather_page_docx():
 BUCKET_NAME3 = os.getenv("R2_BUCKET")
 FILE_KEY3 = "Kubernetes - A Detailed Guide.docx"
 
-@app.get("/download/kubernetes-a-detailed-guide-docx", tags=["Public Downloads"])
+@app.get(
+    "/download/kubernetes-a-detailed-guide-docx",
+    response_class=HTMLResponse,
+    tags=["Public Downloads"]
+)
 async def download_kubernetes_a_detailed_guide_docx():
     try:
-        # Generate a temporary signed URL (valid for 1 hour)
+        # Generate a short-lived pre-signed URL
         presigned_url = s3_client.generate_presigned_url(
             "get_object",
             Params={
@@ -338,11 +342,82 @@ async def download_kubernetes_a_detailed_guide_docx():
                 "ResponseContentDisposition": 'attachment; filename="Kubernetes - A Detailed Guide.docx"',
                 "ResponseContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             },
-            ExpiresIn=3600,  # 1 hour – adjust as needed
+            ExpiresIn=3600,  # 1 hour
         )
 
-        # Instant redirect – works well even on cold starts
-        return RedirectResponse(url=presigned_url, status_code=302)
+        # Simple, clean download page
+        html_content = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download – Kubernetes Guide</title>
+    <style>
+        body {{
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #1e293b;
+        }}
+        .card {{
+            background: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            text-align: center;
+            max-width: 420px;
+            width: 90%;
+        }}
+        h1 {{
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }}
+        p {{
+            color: #64748b;
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }}
+        .download-btn {{
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            padding: 0.875rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.05rem;
+            transition: background 0.2s;
+        }}
+        .download-btn:hover {{
+            background: #1d4ed8;
+        }}
+        .note {{
+            margin-top: 1.5rem;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Kubernetes – A Detailed Guide</h1>
+        <p>Click the button below to download the document<br>(approximately 10 MB).</p>
+        
+        <a href="{presigned_url}" class="download-btn" download>
+            Download Document
+        </a>
+
+        <p class="note">The download will start immediately after you click.</p>
+    </div>
+</body>
+</html>
+"""
+        return HTMLResponse(content=html_content)
 
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
@@ -350,7 +425,7 @@ async def download_kubernetes_a_detailed_guide_docx():
             raise HTTPException(status_code=404, detail="File not found in R2")
         raise HTTPException(status_code=500, detail=f"R2 error: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating download link: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating download page: {str(e)}")
 
 # Include the weather router
 app.include_router(weather_router)
