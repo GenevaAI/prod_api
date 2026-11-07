@@ -11,6 +11,7 @@ import secrets
 import os
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 from io import BytesIO
 from dotenv import load_dotenv
 
@@ -324,28 +325,44 @@ async def download_python_api_weather_page_docx():
 
 
 BUCKET_NAME3 = os.getenv("R2_BUCKET")
-FILE_KEY3 = "Kubernetes - A Detailed Guide.docx"     # exact object key in R2
+FILE_KEY3 = "Kubernetes - A Detailed Guide.docx"
 
 @app.get("/download/kubernetes-a-detailed-guide-docx", tags=["Public Downloads"])
 async def download_kubernetes_a_detailed_guide_docx():
-
-    # Public endpoint – anyone can download the Word document without authentication.
-
     try:
-        # Fetch the object from R2
-        response = s3_client.get_object(Bucket=BUCKET_NAME3, Key=FILE_KEY3)
-        file_content = response["Body"].read()
-
-        # Prepare streaming response
-        return StreamingResponse(
-            BytesIO(file_content),
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={
-                "Content-Disposition": 'attachment; filename="Kubernetes - A Detailed Guide.docx"'
-            },
+        # Get the object (this is fast – only metadata + a streaming body)
+        s3_response = s3_client.get_object(Bucket=BUCKET_NAME3, Key=FILE_KEY3)
+        
+        file_stream = s3_response["Body"]          # StreamingBody
+        content_length = s3_response["ContentLength"]
+        content_type = s3_response.get(
+            "ContentType",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
-    except s3_client.exceptions.NoSuchKey:
-        raise HTTPException(status_code=404, detail="File not found in R2")
+
+        # Generator that yields chunks
+        def iterfile():
+            # 1 MB chunks are a good balance
+            for chunk in file_stream.iter_chunks(chunk_size=1024 * 1024):
+                yield chunk
+
+        headers = {
+            "Content-Disposition": 'attachment; filename="Kubernetes - A Detailed Guide.docx"',
+            "Content-Length": str(content_length),          # ← critical for browsers
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "public, max-age=3600",        # optional but helpful
+        }
+
+        return StreamingResponse(
+            iterfile(),
+            media_type=content_type,
+            headers=headers,
+        )
+
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
+            raise HTTPException(status_code=404, detail="File not found in R2")
+        raise HTTPException(status_code=500, detail=f"R2 error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
