@@ -323,48 +323,34 @@ async def download_python_api_weather_page_docx():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
-
 BUCKET_NAME3 = os.getenv("R2_BUCKET")
 FILE_KEY3 = "Kubernetes - A Detailed Guide.docx"
 
 @app.get("/download/kubernetes-a-detailed-guide-docx", tags=["Public Downloads"])
 async def download_kubernetes_a_detailed_guide_docx():
     try:
-        # Get the object (this is fast – only metadata + a streaming body)
-        s3_response = s3_client.get_object(Bucket=BUCKET_NAME3, Key=FILE_KEY3)
-        
-        file_stream = s3_response["Body"]          # StreamingBody
-        content_length = s3_response["ContentLength"]
-        content_type = s3_response.get(
-            "ContentType",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        # Generate a temporary signed URL (valid for 1 hour)
+        presigned_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": BUCKET_NAME3,
+                "Key": FILE_KEY3,
+                "ResponseContentDisposition": 'attachment; filename="Kubernetes - A Detailed Guide.docx"',
+                "ResponseContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+            ExpiresIn=3600,  # 1 hour – adjust as needed
         )
 
-        # Generator that yields chunks
-        def iterfile():
-            # 1 MB chunks are a good balance
-            for chunk in file_stream.iter_chunks(chunk_size=1024 * 1024):
-                yield chunk
-
-        headers = {
-            "Content-Disposition": 'attachment; filename="Kubernetes - A Detailed Guide.docx"',
-            "Content-Length": str(content_length),          # ← critical for browsers
-            "Accept-Ranges": "bytes",
-            "Cache-Control": "public, max-age=3600",        # optional but helpful
-        }
-
-        return StreamingResponse(
-            iterfile(),
-            media_type=content_type,
-            headers=headers,
-        )
+        # Instant redirect – works well even on cold starts
+        return RedirectResponse(url=presigned_url, status_code=302)
 
     except ClientError as e:
-        if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
+        error_code = e.response["Error"]["Code"]
+        if error_code in ("NoSuchKey", "404"):
             raise HTTPException(status_code=404, detail="File not found in R2")
         raise HTTPException(status_code=500, detail=f"R2 error: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating download link: {str(e)}")
 
 # Include the weather router
 app.include_router(weather_router)
