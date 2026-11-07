@@ -296,6 +296,7 @@ async def download_python_api_docx():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
+BUCKET_NAME2 = os.getenv("R2_BUCKET")
 FILE_KEY2 = "Python API - Weather Page.docx"     # exact object key in R2
 
 @app.get("/download/python-api-weather-page-docx", tags=["Public Downloads"])
@@ -305,7 +306,7 @@ async def download_python_api_weather_page_docx():
 
     try:
         # Fetch the object from R2
-        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=FILE_KEY2)
+        response = s3_client.get_object(Bucket=BUCKET_NAME2, Key=FILE_KEY2)
         file_content = response["Body"].read()
 
         # Prepare streaming response
@@ -322,16 +323,17 @@ async def download_python_api_weather_page_docx():
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
 
-FILE_KEY3 = "Kubernetes.docx"     # exact object key in R2
+BUCKET_NAME3 = os.getenv("R2_BUCKET")
+FILE_KEY3 = "Kubernetes - A Detailed Guide.docx"     # exact object key in R2
 
-@app.get("/download/kubernetes-docx", tags=["Public Downloads"])
-async def download_kubernetes_docx():
+@app.get("/download/kubernetes-a-detailed-guide-docx", tags=["Public Downloads"])
+async def download_kubernetes_a_detailed_guide_docx():
 
     # Public endpoint – anyone can download the Word document without authentication.
 
     try:
         # Fetch the object from R2
-        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=FILE_KEY3)
+        response = s3_client.get_object(Bucket=BUCKET_NAME3, Key=FILE_KEY3)
         file_content = response["Body"].read()
 
         # Prepare streaming response
@@ -339,7 +341,7 @@ async def download_kubernetes_docx():
             BytesIO(file_content),
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={
-                "Content-Disposition": 'attachment; filename="Kubernetes.docx"'
+                "Content-Disposition": 'attachment; filename="Kubernetes - A Detailed Guide.docx"'
             },
         )
     except s3_client.exceptions.NoSuchKey:
