@@ -247,7 +247,7 @@ async def download_iam_technologies_and_tools_docx():
 <body>
     <div class="card">
         <h1>IAM Technologies and Tools</h1>
-        <p>Click the button below to download the document<br>(approximately 10 MB).</p>
+        <p>Click the button below to download the document<br>(approximately 70 MB).</p>
         
         <a href="{presigned_url}" class="download-btn" download>
             Download Document
