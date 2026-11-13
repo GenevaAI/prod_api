@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -24,6 +25,7 @@ from .routers import profile, users, auth_routes
 from .routers.auth_routes import get_current_user, verify_password, create_access_token, require_roles
 from .weather import router as weather_router   # import the Weather router
 from .downloads import router as downloads_router
+from .paypal import router as paypal_router 
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -265,3 +267,45 @@ app.include_router(downloads_router)
 
 # Include the weather router
 app.include_router(weather_router)
+
+# PayPal Router
+# CORS (keep it here, not in paypal.py)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include the PayPal routes
+app.include_router(paypal_router)
+
+# Serve the payment page
+
+@app.get("/payment", response_class=HTMLResponse)
+async def payment_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="payment.html",
+        context={
+            "paypal_client_id": os.getenv("PAYPAL_CLIENT_ID"),
+        },
+    )
+
+@app.get("/payment-success", response_class=HTMLResponse)
+async def payment_success(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="payment-success.html",
+        context={},          # or whatever extra vars you need
+    )
+
+@app.get("/payment-cancel", response_class=HTMLResponse)
+async def payment_cancel(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="payment-cancel.html",
+        context={},
+    )
+

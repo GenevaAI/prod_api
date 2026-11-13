@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     R2_ENDPOINT: str
     R2_PUBLIC_URL: str
 
+    # PayPal
+    PAYPAL_CLIENT_ID: str
+    PAYPAL_CLIENT_SECRET: str
+    PAYPAL_BASE_URL: str
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",
