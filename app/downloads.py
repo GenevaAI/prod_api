@@ -166,14 +166,14 @@ async def download_kubernetes_a_detailed_guide_docx():
 
 
 @router.get(
-    "/download/iam-technologies-and-tools-docx",
+    "/download/identity-security-technologies-and-tools-docx",
     response_class=HTMLResponse,
 )
 
 
-async def download_iam_technologies_and_tools_docx():
-    FILE_KEY = "IAM Technologies and Tools.docx"
-    DOWNLOAD_FILENAME = "IAM Technologies and Tools.docx"
+async def download_identity_security_technologies_and_tools_docx():
+    FILE_KEY = "Identity Security - Technologies and Tools.docx"
+    DOWNLOAD_FILENAME = "Identity Security - Technologies and Tools.docx"
 
     try:
         presigned_url = s3_client.generate_presigned_url(
@@ -246,7 +246,7 @@ async def download_iam_technologies_and_tools_docx():
 </head>
 <body>
     <div class="card">
-        <h1>IAM Technologies and Tools</h1>
+        <h1>Identity Security - Technologies and Tools</h1>
         <p>Click the button below to download the document<br>(approximately 70 MB).</p>
         
         <a href="{presigned_url}" class="download-btn" download>
