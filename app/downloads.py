@@ -267,3 +267,10 @@ async def download_identity_security_technologies_and_tools_docx():
         raise HTTPException(status_code=500, detail=f"R2 error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating download page: {str(e)}")
+
+@router.get("/download/python-api-payment-processor-docx")
+async def download_python_api_payment_processor_docx():
+    return _stream_docx_from_r2(
+        file_key="Python API - PayPal and Credit Card Payment Processor.docx",
+        download_filename="Python API - PayPal and Credit Card Payment Processor.docx",
+    )
