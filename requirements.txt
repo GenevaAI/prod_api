@@ -19,3 +19,5 @@ pydantic[email]
 
 psycopg2-binary          # only if you switch to PostgreSQL
 # or asyncpg if you go fully async later
+
+feedparser 	#news
