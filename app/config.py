@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     PAYPAL_CLIENT_SECRET: str
     PAYPAL_BASE_URL: str
 
+    #GNews API
+    GNEWS_API_KEY: str
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",

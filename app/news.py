@@ -22,72 +22,72 @@ class Article(BaseModel):
     published_at: Optional[str] = None
     description: Optional[str] = None
 
-def fetch_google_news(query: str = "technology", max_results: int = 12) -> list[Article]:
-    encoded_query = quote_plus(query)
-    rss_url = (
-        f"https://news.google.com/rss/search?"
-        f"q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
-    )
+def fetch_g_news(query: str = "technology", max_results: int = 12) -> list[Article]:
+    """
+    Fetch news from GNews API (https://gnews.io).
+    Free plan: 100 requests/day, max 10 articles per request.
+    """
+    api_key = os.getenv("GNEWS_API_KEY")
+    if not api_key:
+        print("Error: GNEWS_API_KEY environment variable is not set")
+        return []
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/rss+xml, application/xml, text/xml, */*",
-        "Accept-Language": "en-US,en;q=0.9",
+    # Free plan hard limit is 10 articles per request
+    max_results = min(max_results, 10)
+
+    url = "https://gnews.io/api/v4/search"
+    params = {
+        "q": query,
+        "lang": "en",
+        "country": "us",
+        "max": max_results,
+        "sortby": "publishedAt",  # or "relevance"
+        "apikey": api_key,
     }
 
     try:
-        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-            response = client.get(rss_url, headers=headers)
+        with httpx.Client(timeout=15.0) as client:
+            response = client.get(url, params=params)
             response.raise_for_status()
-            feed = feedparser.parse(response.content)
+            data = response.json()
     except Exception as e:
-        # Temporary: surface the error so you can see it
-        print(f"Error fetching news: {type(e).__name__}: {e}")
-        # You can also temporarily return a dummy article with the error message
+        print(f"Error fetching news from GNews: {type(e).__name__}: {e}")
         return []
 
     articles = []
-    for entry in feed.entries[:max_results]:
-        # Source
-        source = None
-        if hasattr(entry, "source") and entry.source:
-            source = getattr(entry.source, "title", None) or str(entry.source)
-
+    for item in data.get("articles", []):
         # Published date
         published_at = None
-        if hasattr(entry, "published_parsed") and entry.published_parsed:
+        if item.get("publishedAt"):
             try:
-                dt = datetime(*entry.published_parsed[:6])
+                # GNews returns ISO format: 2026-11-22T14:30:00Z
+                dt = datetime.fromisoformat(item["publishedAt"].replace("Z", "+00:00"))
                 published_at = dt.strftime("%Y-%m-%d %H:%M")
             except Exception:
-                published_at = getattr(entry, "published", None)
+                published_at = item.get("publishedAt")
 
-        # Description / summary
-        description = getattr(entry, "summary", None) or getattr(entry, "description", None)
+        source = None
+        if item.get("source") and isinstance(item["source"], dict):
+            source = item["source"].get("name")
 
         articles.append(
             Article(
-                title=entry.title,
-                url=entry.link,
+                title=item.get("title") or "No title",
+                url=item.get("url") or "#",
                 source=source,
                 published_at=published_at,
-                description=description,
+                description=item.get("description") or item.get("content"),
             )
         )
 
     return articles
-
 
 @router.get("/feed", response_class=HTMLResponse)
 async def news_page(
     request: Request,
     q: str = Query("technology", description="Search query"),
 ):
-    articles = fetch_google_news(query=q, max_results=12)
+    articles = fetch_g_news(query=q, max_results=12)
     return templates.TemplateResponse(
         request=request,
         name="news.html",
