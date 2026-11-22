@@ -742,7 +742,7 @@ async def download_python_api_news_feed_page_docx():
 <body>
     <div class="card">
         <h1>Python API - News Feed Documentation</h1>
-        <p>Click the button below to download the document<br>(approximately 108 KB).</p>
+        <p>Click the button below to download the document<br>(approximately 109 KB).</p>
         
         <a href="{presigned_url}" class="download-btn" download>
             Download Document
