@@ -23,23 +23,31 @@ class Article(BaseModel):
     description: Optional[str] = None
 
 def fetch_google_news(query: str = "technology", max_results: int = 12) -> list[Article]:
-    """
-    Fetch news from Google News RSS (no API key required).
-    """
     encoded_query = quote_plus(query)
     rss_url = (
         f"https://news.google.com/rss/search?"
         f"q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
     )
 
-    # Use httpx for better reliability + timeout
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
     try:
-        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
-            response = client.get(rss_url, headers={"User-Agent": "Mozilla/5.0"})
+        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+            response = client.get(rss_url, headers=headers)
             response.raise_for_status()
             feed = feedparser.parse(response.content)
     except Exception as e:
-        print(f"Error fetching news: {e}")
+        # Temporary: surface the error so you can see it
+        print(f"Error fetching news: {type(e).__name__}: {e}")
+        # You can also temporarily return a dummy article with the error message
         return []
 
     articles = []
