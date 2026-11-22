@@ -25,7 +25,8 @@ from .routers import profile, users, auth_routes
 from .routers.auth_routes import get_current_user, verify_password, create_access_token, require_roles
 from .weather import router as weather_router   # import the Weather router
 from .downloads import router as downloads_router
-from .paypal import router as paypal_router 
+from .paypal import router as paypal_router
+from .news import router as news_router 
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -309,3 +310,5 @@ async def payment_cancel(request: Request):
         context={},
     )
 
+# Include the news router
+app.include_router(news_router)

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News: {{ query }}</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            max-width: 820px;
+            margin: 2rem auto;
+            padding: 0 1.2rem;
+            line-height: 1.5;
+            color: #222;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+        }
+        .search-form {
+            margin: 1.5rem 0 2rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .search-form input {
+            flex: 1;
+            padding: 0.55rem 0.8rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+        .search-form button {
+            padding: 0.55rem 1.1rem;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .search-form button:hover {
+            background: #1558b0;
+        }
+        article {
+            border-bottom: 1px solid #eee;
+            padding: 1.3rem 0;
+        }
+        article:last-child {
+            border-bottom: none;
+        }
+        h2 {
+            margin: 0 0 0.35rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .meta {
+            color: #666;
+            font-size: 0.88rem;
+            margin-bottom: 0.45rem;
+        }
+        p {
+            margin: 0.4rem 0 0;
+            color: #333;
+            font-size: 0.97rem;
+        }
+        .empty {
+            color: #666;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>News: {{ query }}</h1>
+
+    <form class="search-form" method="get" action="/feed">
+        <input type="text" name="q" value="{{ query }}" placeholder="Search news..." required>
+        <button type="submit">Search</button>
+    </form>
+
+    {% if articles %}
+        {% for article in articles %}
+        <article>
+            <h2>
+                <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">
+                    {{ article.title }}
+                </a>
+            </h2>
+            <div class="meta">
+                {{ article.source or "Unknown source" }}
+                {% if article.published_at %} · {{ article.published_at }}{% endif %}
+            </div>
+            {% if article.description %}
+            <p>{{ article.description | striptags | truncate(280) }}</p>
+            {% endif %}
+        </article>
+        {% endfor %}
+    {% else %}
+        <p class="empty">No articles found for “{{ query }}”.</p>
+    {% endif %}
+</body>
+</html>
