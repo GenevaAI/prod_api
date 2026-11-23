@@ -27,6 +27,8 @@ from .weather import router as weather_router   # import the Weather router
 from .downloads import router as downloads_router
 from .paypal import router as paypal_router
 from .news import router as news_router 
+from .routers.stocks import router as stocks_router
+from .routers.currencies import router as currencies_router
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -312,3 +314,9 @@ async def payment_cancel(request: Request):
 
 # Include the news router
 app.include_router(news_router)
+
+# Include the stocks router
+app.include_router(stocks_router)
+
+# Include the currencies router
+app.include_router(currencies_router)

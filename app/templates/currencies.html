@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Major World Currencies</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --border: #334155;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        select {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        .status { color: var(--muted); font-size: 0.9rem; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 1.2rem;
+            border: 1px solid var(--border);
+            transition: transform 0.15s;
+        }
+        .card:hover { transform: translateY(-2px); }
+        .currency-code {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .rate {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-top: 0.4rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .label { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💱 Major World Currencies</h1>
+        <p class="subtitle">Exchange rates against a chosen base currency</p>
+
+        <div class="controls">
+            <label>
+                Base currency:
+                <select id="base-select" onchange="loadRates()">
+                    <option value="USD" selected>USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="JPY">JPY</option>
+                    <option value="CHF">CHF</option>
+                    <option value="CAD">CAD</option>
+                    <option value="AUD">AUD</option>
+                    <option value="CNY">CNY</option>
+                </select>
+            </label>
+            <span class="status" id="last-update">Loading…</span>
+        </div>
+
+        <div class="grid" id="rates-grid">
+            <div class="card">Loading rates…</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadRates() {
+            const base = document.getElementById('base-select').value;
+            const grid = document.getElementById('rates-grid');
+            grid.innerHTML = '<div class="card">Loading…</div>';
+
+            try {
+                const res = await fetch(`/currencies/api/rates?base=${base}`);
+                const data = await res.json();
+
+                if (data.error) {
+                    grid.innerHTML = `<div class="card" style="color:#ef4444">${data.error}</div>`;
+                    return;
+                }
+
+                grid.innerHTML = '';
+                for (const [code, rate] of Object.entries(data.rates)) {
+                    if (code === data.base) continue; // skip base itself
+                    grid.innerHTML += `
+                        <div class="card">
+                            <div class="currency-code">${code}</div>
+                            <div class="rate">${Number(rate).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 6
+                            })}</div>
+                            <div class="label">1 ${data.base} =</div>
+                        </div>`;
+                }
+
+                document.getElementById('last-update').textContent =
+                    `Date: ${data.date} • Source: ${data.source}`;
+            } catch (err) {
+                grid.innerHTML = `<div class="card" style="color:#ef4444">Failed to load rates</div>`;
+            }
+        }
+
+        loadRates();
+        // Refresh every 5 minutes (rates don't change more often on free APIs)
+        setInterval(loadRates, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Stock Indexes – Real-time</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --green: #22c55e;
+            --red: #ef4444;
+            --border: #334155;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+        .status {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+        .dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        th, td {
+            padding: 0.9rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background: #0f172a;
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: rgba(255,255,255,0.03); }
+        .price { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .up { color: var(--green); }
+        .down { color: var(--red); }
+        .name { font-weight: 500; }
+        .symbol { color: var(--muted); font-size: 0.85rem; }
+        .error { color: var(--red); font-size: 0.85rem; }
+        @media (max-width: 700px) {
+            th:nth-child(3), td:nth-child(3),
+            th:nth-child(5), td:nth-child(5) { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌍 World Stock Exchange Indexes</h1>
+        <p class="subtitle">Major global indexes • Near real-time via Yahoo Finance</p>
+
+        <div class="status">
+            <div class="dot"></div>
+            <span id="last-update">Loading…</span>
+            <span>• Auto-refresh every 60 seconds</span>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Index</th>
+                    <th>Price</th>
+                    <th>Change</th>
+                    <th>% Change</th>
+                    <th>Previous Close</th>
+                </tr>
+            </thead>
+            <tbody id="indexes-body">
+                <tr><td colspan="5">Loading data…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadIndexes() {
+            try {
+                const res = await fetch('/stocks/api/indexes');
+                const data = await res.json();
+                const tbody = document.getElementById('indexes-body');
+                tbody.innerHTML = '';
+
+                data.indexes.forEach(idx => {
+                    if (idx.error) {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td><div class="name">${idx.name}</div>
+                                    <div class="symbol">${idx.symbol}</div></td>
+                                <td colspan="4" class="error">Error: ${idx.error}</td>
+                            </tr>`;
+                        return;
+                    }
+
+                    const changeClass = (idx.change ?? 0) >= 0 ? 'up' : 'down';
+                    const sign = (idx.change ?? 0) >= 0 ? '+' : '';
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>
+                                <div class="name">${idx.name}</div>
+                                <div class="symbol">${idx.symbol}</div>
+                            </td>
+                            <td class="price">${idx.price != null ? idx.price.toLocaleString() : '—'}</td>
+                            <td class="${changeClass}">${idx.change != null ? sign + idx.change.toFixed(2) : '—'}</td>
+                            <td class="${changeClass}">${idx.change_pct != null ? sign + idx.change_pct.toFixed(2) + '%' : '—'}</td>
+                            <td>${idx.previous_close != null ? idx.previous_close.toLocaleString() : '—'}</td>
+                        </tr>`;
+                });
+
+                document.getElementById('last-update').textContent =
+                    'Last update: ' + new Date().toLocaleTimeString();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('indexes-body').innerHTML =
+                    '<tr><td colspan="5" class="error">Failed to load data</td></tr>';
+            }
+        }
+
+        loadIndexes();
+        setInterval(loadIndexes, 60000); // refresh every 60 seconds
+    </script>
+</body>
+</html>

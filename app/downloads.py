@@ -126,7 +126,7 @@ async def download_python_api_docx():
 <body>
     <div class="card">
         <h1>Python API Documentation</h1>
-        <p>Click the button below to download the document<br>(approximately 528 KB).</p>
+        <p>Click the button below to download the document<br>(approximately 538 KB).</p>
         
         <a href="{presigned_url}" class="download-btn" download>
             Download Document
